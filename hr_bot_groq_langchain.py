@@ -5,8 +5,17 @@ from langchain.agents import initialize_agent, Tool, AgentType
 from langchain_groq import ChatGroq
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.memory.chat_message_histories import FileChatMessageHistory
+from langchain.agents.mrkl.output_parser import MRKLOutputParser
 
 warnings.filterwarnings("ignore")
+
+
+class CustomOutputParser(MRKLOutputParser):
+    def parse(self, text: str):
+        try:
+            return super().parse(text)
+        except Exception:
+            return {"final_answer": text}
 
 # ----------------------------
 # 1. Set Up a Simple HR Database
@@ -45,6 +54,18 @@ def policy_lookup(query: str) -> str:
         return policies.get(query.lower(), "Policy not found. Please ask about vacation, healthcare, promotion, onboarding, or benefits.")
     except FileNotFoundError:
         return "Policy file not found. Please ensure policies.txt exists."
+    
+# Store User Info in Memory
+def store_user_info(info: str) -> str:
+    """Stores important user information in memory."""
+    memory.save_context({"input": info}, {"output": f"Got it! I'll remember that: {info}"})
+    return f"I've saved this information: {info}"
+
+# Retrieve Conversation Memory
+def retrieve_memory(_input: str) -> str:
+    """Retrieves the conversation memory."""
+    return f"Here's what I remember from our conversation:\n{memory.load_memory_variables({})['chat_history']}"
+
 
 tools = [
     Tool(
@@ -62,6 +83,16 @@ tools = [
             "Useful for retrieving HR policies. When a user asks about policies such as 'vacation', 'healthcare', "
             "or 'promotion', this tool should be called. The input should be a single keyword."
         )
+    ),
+    Tool(
+        name="Store Information",
+        func=store_user_info,
+        description="Store user details such as name, department, or preferences. Input should be a sentence describing the information."
+    ),
+    Tool(
+        name="Retrieve Memory",
+        func=retrieve_memory,
+        description="Retrieve stored conversation details. Input can be anything."
     )
 ]
 
@@ -102,7 +133,8 @@ agent = initialize_agent(
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
     agent_kwargs=agent_kwargs,
-    memory=memory
+    memory=memory,
+    output_parser=CustomOutputParser()
 )
 
 # ----------------------------
