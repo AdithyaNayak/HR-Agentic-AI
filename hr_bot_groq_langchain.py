@@ -66,6 +66,13 @@ def retrieve_memory(_input: str) -> str:
     """Retrieves the conversation memory."""
     return f"Here's what I remember from our conversation:\n{memory.load_memory_variables({})['chat_history']}"
 
+# Clear Conversation Memory
+def clear_memory(_input: str = None) -> str:
+    """Clears all stored memory."""
+    memory.clear()  # Reset the conversation history and any stored data
+    return "All memory has been erased."
+
+
 
 tools = [
     Tool(
@@ -93,6 +100,11 @@ tools = [
         name="Retrieve Memory",
         func=retrieve_memory,
         description="Retrieve stored conversation details. Input can be anything."
+    ),
+    Tool(
+        name="Clear Memory",
+        func=clear_memory,
+        description="Clears all stored conversation history and user information."
     )
 ]
 
