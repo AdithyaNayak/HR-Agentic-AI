@@ -72,6 +72,11 @@ def clear_memory(_input: str = None) -> str:
     memory.clear()  # Reset the conversation history and any stored data
     return "All memory has been erased."
 
+def show_memory(_input: str = None) -> str:
+    """Retrieve and display all stored memory contents."""
+    memory_data = memory.load_memory_variables({})  # Load stored data
+    return memory_data if memory_data else "No memory stored."
+
 
 
 tools = [
@@ -105,6 +110,11 @@ tools = [
         name="Clear Memory",
         func=clear_memory,
         description="Clears all stored conversation history and user information."
+    ),
+    Tool(
+    name="Show Memory",
+    func=show_memory,
+    description="Displays all stored memory data for debugging."
     )
 ]
 
