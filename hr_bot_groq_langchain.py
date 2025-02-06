@@ -3,6 +3,8 @@ import sqlite3
 import warnings
 from langchain.agents import initialize_agent, Tool, AgentType
 from langchain_groq import ChatGroq
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.memory.chat_message_histories import FileChatMessageHistory
 
 warnings.filterwarnings("ignore")
 
@@ -23,7 +25,7 @@ def setup_db():
 db_conn = setup_db()
 
 # ----------------------------
-# 2. Define the Tools (Including a Database Lookup)
+# 2. Define the Tools
 # ----------------------------
 def leave_balance_query(employee_id: str) -> str:
     """Queries the HR database for the leave balance of the given employee."""
@@ -36,17 +38,14 @@ def leave_balance_query(employee_id: str) -> str:
         return f"No record found for employee {employee_id}."
 
 def policy_lookup(query: str) -> str:
-    """Retrieves an HR policy from a predefined set of policies."""
-    policies = {
-        "vacation": "Employees accrue 1.5 vacation days per month.",
-        "healthcare": "Medical coverage starts after 30 days of employment.",
-        "promotion": "Promotion cycles occur biannually in Q1 and Q3.",
-        "onboarding": "New hires complete onboarding in 3 steps: 1) Orientation, 2) Training, 3) Team Integration.",
-        "benefits": "Benefits include healthcare, 401(k), and paid time off."
-    }
-    return policies.get(query.lower(), "Policy not found. Please ask about vacation, healthcare, promotion, onboarding, or benefits.")
+    """Retrieves an HR policy from a text file."""
+    try:
+        with open("policies.txt", "r", encoding="utf-8") as f:
+            policies = dict(line.strip().split(": ", 1) for line in f if ": " in line)
+        return policies.get(query.lower(), "Policy not found. Please ask about vacation, healthcare, promotion, onboarding, or benefits.")
+    except FileNotFoundError:
+        return "Policy file not found. Please ensure policies.txt exists."
 
-# Define tools with detailed descriptions.
 tools = [
     Tool(
         name="Leave Balance Check",
@@ -67,34 +66,47 @@ tools = [
 ]
 
 # ----------------------------
-# 3. Initialize the Groq LLM via LangChain and Set a System Prompt
+# 3. Set Up Persistent Memory
 # ----------------------------
-# The Groq LLM integration is provided by langchain-groq.
+# We use FileChatMessageHistory to persist conversation history to a file,
+# and wrap it with ConversationBufferWindowMemory so that the agent can use the history.
+memory = ConversationBufferWindowMemory(
+    memory_key="chat_history",
+    return_messages=True,
+    chat_memory=FileChatMessageHistory("chat_history.txt")
+)
+
+# ----------------------------
+# 4. Initialize the Groq LLM and the Agent with a System Prompt
+# ----------------------------
+# The system prompt instructs HRBot to be friendly and professional, and to remember the user's name if provided.
+agent_kwargs = {
+    "prefix": (
+        "You are HRBot, a friendly and professional HR assistant. "
+        "Your responsibilities include answering questions about company policies, leave balances, onboarding, benefits, etc. "
+        "If a user provides their name (for example, 'my name is adi'), remember it and address them by name in future responses. "
+        "Don't answer any questions that are out of context or inappropriate."
+        "Use the available tools when appropriate."
+    )
+}
+
 llm = ChatGroq(
     temperature=0.7,
     model_name="llama3-70b-8192"
 )
 
-# Define a system prompt (via a prefix) to set the agent's persona.
-agent_kwargs = {
-    "prefix": (
-        "You are HRBot, a friendly and professional HR assistant. "
-        "Your tasks include answering employee questions about company policies, leave balances, onboarding, and benefits. "
-        "When needed, use the available tools to fetch real data from the HR database."
-    )
-}
-
-# Initialize the agent using a Zero-Shot React agent so that it can automatically decide when to call a tool.
+# Initialize the agent with our tools, Groq LLM, system prompt, and persistent memory.
 agent = initialize_agent(
     tools,
     llm,
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
-    agent_kwargs=agent_kwargs
+    agent_kwargs=agent_kwargs,
+    memory=memory
 )
 
 # ----------------------------
-# 4. Run the Chatbot
+# 5. Run the Chatbot
 # ----------------------------
 def hr_chatbot():
     print("HRBot: Hello! I'm your HR assistant. How can I help you today?")
@@ -104,7 +116,7 @@ def hr_chatbot():
             print("HRBot: Thank you for using HR services!")
             break
 
-        # The agent automatically decides whether to call a tool or answer directly.
+        # The agent processes the query using the persistent memory.
         response = agent.run(user_input)
         print(f"HRBot: {response}")
 
