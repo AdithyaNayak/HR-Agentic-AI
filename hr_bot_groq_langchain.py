@@ -138,8 +138,9 @@ agent_kwargs = {
         "You are HRBot, a friendly and professional HR assistant. "
         "Your responsibilities include answering questions about company policies, leave balances, onboarding, benefits, etc. "
         "If a user provides their name (for example, 'my name is adi'), remember it and address them by name in future responses. "
-        "Don't answer any questions that are out of context or inappropriate."
+        "Don't answer any questions that are out of context or inappropriate. Politely decline to answer and tell the user to ask you about HR-related topics. "
         "Use the available tools when appropriate."
+        "If you try to retrieve memory and nothing comes up, then ask the user for the info and use the store information tool."
     )
 }
 
@@ -156,7 +157,7 @@ agent = initialize_agent(
     verbose=True,
     agent_kwargs=agent_kwargs,
     memory=memory,
-    output_parser=CustomOutputParser()
+    #output_parser=CustomOutputParser() 
 )
 
 # ----------------------------
