@@ -33,6 +33,28 @@ def setup_db():
 
 db_conn = setup_db()
 
+
+
+from pymongo import MongoClient
+
+# Replace <username> and <password> with your credentials
+MONGO_URI = "mongodb+srv://adithyadnayak:4yvB4AZ4pGGhVTrR@employee.aqtf1.mongodb.net/?retryWrites=true&w=majority&appName=Employee"
+
+# Connect to MongoDB Atlas
+client = MongoClient(MONGO_URI)
+
+# Select the database
+db = client["Company"]
+
+# Select the collection
+employees_collection = db["Employees"]
+
+""""
+# Fetch and print all employees
+for employee in employees_collection.find():
+    print(employee)"""
+
+
 # ----------------------------
 # 2. Define the Tools
 # ----------------------------
@@ -54,6 +76,13 @@ def policy_lookup(query: str) -> str:
         return policies.get(query.lower(), "Policy not found. Please ask about vacation, healthcare, promotion, onboarding, or benefits.")
     except FileNotFoundError:
         return "Policy file not found. Please ensure policies.txt exists."
+    
+def get_employee_details(employee_id: str) -> str:
+    """Fetch employee details from MongoDB."""
+    employee = employees_collection.find_one({"id": employee_id})
+    if employee:
+        return f"Employee {employee_id} details: {employee}"
+    return f"No record found for employee {employee_id}."
     
 # Store User Info in Memory
 def store_user_info(info: str) -> str:
@@ -97,6 +126,11 @@ tools = [
         )
     ),
     Tool(
+        name="Employee Details Lookup",
+        func=lambda input: get_employee_details(input.split()[-1]),
+        description="Retrieve employee details from MongoDB using their employee ID."
+    ),
+    Tool(
         name="Store Information",
         func=store_user_info,
         description="Store user details such as name, department, or preferences. Input should be a sentence describing the information."
@@ -112,11 +146,12 @@ tools = [
         description="Clears all stored conversation history and user information."
     ),
     Tool(
-    name="Show Memory",
-    func=show_memory,
-    description="Displays all stored memory data for debugging."
+        name="Show Memory",
+        func=show_memory,
+        description="Displays all stored memory data for debugging."
     )
 ]
+
 
 # ----------------------------
 # 3. Set Up Persistent Memory
@@ -141,6 +176,7 @@ agent_kwargs = {
         "Don't answer any questions that are out of context or inappropriate. Politely decline to answer and tell the user to ask you about HR-related topics. "
         "Use the available tools when appropriate."
         "If you try to retrieve memory and nothing comes up, then ask the user for the info and use the store information tool."
+        "Don't clear memory more than once at a time. "
     )
 }
 
@@ -163,6 +199,8 @@ agent = initialize_agent(
 # ----------------------------
 # 5. Run the Chatbot
 # ----------------------------
+
+
 def hr_chatbot():
     print("HRBot: Hello! I'm your HR assistant. How can I help you today?")
     while True:
@@ -173,6 +211,7 @@ def hr_chatbot():
 
         # The agent processes the query using the persistent memory.
         response = agent.run(user_input)
+        #response = output_parser(user_input)
         print(f"HRBot: {response}")
 
 if __name__ == "__main__":
